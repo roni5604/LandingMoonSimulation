@@ -64,6 +64,12 @@ The simulator is divided into several distinct panels:
         - Each secondary engine slider allows values in the range of -25 to +25 N.
         - Each slider only updates its associated engine without affecting the others.
 
+## Simulator Image
+
+Below is an image of the simulator showing its layout with all panels:
+
+![Simulator Image](assets/simultor-image.png)
+
 ### Key Classes and Their Roles
 
 - **SpacecraftConstants**  
