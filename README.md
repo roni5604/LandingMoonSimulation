@@ -204,12 +204,7 @@ Please refer to the report for a detailed discussion of the crash causes.
 
 ---
 
-## Repository Link
 
-You can find the full source code and project files on GitHub:  
-**[https://github.com/roni5604/LandingMoonSimulation.git](https://github.com/roni5604/LandingMoonSimulation.git)**
-
----
 
 ## Acknowledgments
 
