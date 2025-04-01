@@ -1,22 +1,3 @@
-/*
- * LandingPanel.java
- *
- * Description:
- * This panel displays the landing trajectory and landing status.
- * It shows:
- *  - A fixed desired landing trajectory drawn as a curved (quadratic Bezier) line in blue.
- *    This curve is fixed and does not change over time.
- *  - The actual path traveled by the spacecraft drawn in orange, updated in real-time.
- *  - The Moon (landing target) as a small white circle positioned near the bottom center.
- *  - The current spacecraft position as a red dot.
- *  - When the spacecraft's altitude is near zero, it checks the landing speed.
- *    If the speed exceeds 277.78 m/s (1000 km/h), it displays "Collision!",
- *    otherwise, "Successful Landing!" is shown.
- *
- * The transformation maps world coordinates (from the Spacecraft model) to screen coordinates.
- * A vertical shift is applied so that when sp.y = 0, the spacecraft appears at the defined starting point.
- */
-
 package panels;
 
 import javax.swing.*;
@@ -24,16 +5,30 @@ import java.awt.*;
 import java.util.List;
 import constants.SpacecraftConstants;
 
+/**
+ * LandingPanel.java
+ *
+ * This panel displays the landing trajectory, landing target, and the spacecraft's progress.
+ * A fixed coordinate system is used so that the Moon (landing target) remains static,
+ * and the spacecraft is drawn according to its simulation coordinates.
+ * The mapping is fixed so that the spacecraft starts from a constant point with its initial data.
+ */
 public class LandingPanel extends JPanel {
     private SpacecraftPanel sp;
 
-    // Margins and world coordinate limits for the landing panel
-    private final int margin = 20;
-    private final double H_MAX = 500;
-    private final double V_MAX = 7000;
+    // Define simulation ranges for scaling.
+    // Horizontal range (in meters) for the view.
+    private final double H_MAX = 10000;
+    // Vertical range (in meters) for the view – set to cover the altitude.
+    private final double V_MAX = 30000;
 
-    // Desired start point on screen (Y coordinate)
-    private final int P0y = margin + 50;
+    // Margin in pixels.
+    private final int margin = 20;
+
+    // Landing target position in simulation coordinates.
+    // For a static Moon, assume the landing target is at x = 0, and at y = INITIAL_ALTITUDE (altitude zero).
+    private final double targetX_sim = 0;
+    private final double targetY_sim = SpacecraftConstants.INITIAL_ALTITUDE;
 
     public LandingPanel(SpacecraftPanel spPanel) {
         this.sp = spPanel;
@@ -46,46 +41,52 @@ public class LandingPanel extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         Graphics2D g2d = (Graphics2D) g;
+        // Enable anti-aliasing for smoother drawing.
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
         int width = getWidth();
         int height = getHeight();
 
-        int availWidth = width - 2 * margin;
-        int availHeight = height - 2 * margin;
+        // Calculate scaling factors: map simulation meters to screen pixels.
+        double xScale = (width - 2.0 * margin) / (2.0 * H_MAX);
+        double yScale = (height - 2.0 * margin) / V_MAX;
 
-        double xScale = availWidth / (2.0 * H_MAX);
-        double yScale = availHeight / V_MAX;
+        // Convert simulation coordinates to screen coordinates.
+        // Screen X: center at width/2 + (simX * xScale)
+        // Screen Y: bottom margin corresponds to altitude 0, so:
+        //   screenY = height - margin - (altitude * yScale)
+        double simX = sp.getSpacecraft().x;
+        double simAltitude = sp.getSpacecraft().getAltitude();
+        int spacecraftScreenX = (int)(width / 2 + simX * xScale);
+        int spacecraftScreenY = (int)(height - margin - simAltitude * yScale);
 
-        double effectiveAltitude0 = (height - margin - P0y) / yScale;
-        double shift = SpacecraftConstants.INITIAL_ALTITUDE - effectiveAltitude0;
-
-        int targetX = width / 2;
-        int targetY = height - margin - 40;
-
+        // Draw the landing target (Moon) as a fixed element at the bottom center.
+        int targetScreenX = width / 2;
+        int targetScreenY = height - margin - 40;  // fixed position near the bottom
         int moonRadius = 15;
-        int moonX = targetX - moonRadius;
-        int moonY = targetY - moonRadius;
         g2d.setColor(Color.WHITE);
-        g2d.fillOval(moonX, moonY, 2 * moonRadius, 2 * moonRadius);
+        g2d.fillOval(targetScreenX - moonRadius, targetScreenY - moonRadius, 2 * moonRadius, 2 * moonRadius);
         g2d.setColor(Color.GRAY);
-        g2d.drawOval(moonX, moonY, 2 * moonRadius, 2 * moonRadius);
+        g2d.drawOval(targetScreenX - moonRadius, targetScreenY - moonRadius, 2 * moonRadius, 2 * moonRadius);
         g2d.setColor(Color.WHITE);
-        g2d.drawString("Landing Target", targetX - 40, targetY - 10);
+        g2d.drawString("Landing Target", targetScreenX - 40, targetScreenY - 10);
 
-        int P0x = width / 2;
-        int P0y_screen = P0y;
-        int P2x = targetX;
-        int P2y = targetY;
-        int P1x = width / 2 + 150;
-        int P1y = (P0y_screen + P2y) / 2 - 100;
+        // Draw desired landing trajectory as a blue quadratic Bezier curve.
+        // For simplicity, use control points between the spacecraft's starting position and the landing target.
+        int P0x = width / 2;  // assume spacecraft starts at center horizontally
+        int P0y = height - margin - (int)(SpacecraftConstants.INITIAL_ALTITUDE * yScale);
+        int P2x = targetScreenX;
+        int P2y = targetScreenY;
+        // Control point for the curve – adjust for a smoother trajectory.
+        int P1x = (P0x + P2x) / 2 + 100;
+        int P1y = (P0y + P2y) / 2 - 100;
 
         g2d.setColor(Color.BLUE);
         g2d.setStroke(new BasicStroke(2));
         Point prevPoint = null;
         for (double t = 0; t <= 1; t += 0.01) {
             int bx = (int) ((1 - t) * (1 - t) * P0x + 2 * (1 - t) * t * P1x + t * t * P2x);
-            int by = (int) ((1 - t) * (1 - t) * P0y_screen + 2 * (1 - t) * t * P1y + t * t * P2y);
+            int by = (int) ((1 - t) * (1 - t) * P0y + 2 * (1 - t) * t * P1y + t * t * P2y);
             Point current = new Point(bx, by);
             if (prevPoint != null) {
                 g2d.drawLine(prevPoint.x, prevPoint.y, current.x, current.y);
@@ -93,38 +94,26 @@ public class LandingPanel extends JPanel {
             prevPoint = current;
         }
 
-        List<Point> path = sp.getPath();
+        // Draw the trajectory path (actual progress) in orange.
+        java.util.List<Point> path = sp.getPath();
         if (path.size() > 1) {
             g2d.setColor(Color.ORANGE);
             for (int i = 1; i < path.size(); i++) {
-                Point p1 = path.get(i - 1);
-                Point p2 = path.get(i);
-                double alt1 = (SpacecraftConstants.INITIAL_ALTITUDE - p1.y);
-                double alt2 = (SpacecraftConstants.INITIAL_ALTITUDE - p2.y);
-                int x1 = (int) (width / 2 + p1.x * xScale);
-                int y1 = height - margin - (int) ((alt1 - shift) * yScale);
-                int x2 = (int) (width / 2 + p2.x * xScale);
-                int y2 = height - margin - (int) ((alt2 - shift) * yScale);
+                double simX1 = path.get(i - 1).x;
+                double simAltitude1 = SpacecraftConstants.INITIAL_ALTITUDE - path.get(i - 1).y;
+                double simX2 = path.get(i).x;
+                double simAltitude2 = SpacecraftConstants.INITIAL_ALTITUDE - path.get(i).y;
+                int x1 = (int)(width/2 + simX1 * xScale);
+                int y1 = (int)(height - margin - simAltitude1 * yScale);
+                int x2 = (int)(width/2 + simX2 * xScale);
+                int y2 = (int)(height - margin - simAltitude2 * yScale);
                 g2d.drawLine(x1, y1, x2, y2);
             }
         }
 
-        double currentAlt = (SpacecraftConstants.INITIAL_ALTITUDE - sp.getSpacecraft().y) - shift;
-        int currentX = (int) (width / 2 + sp.getSpacecraft().x * xScale);
-        int currentY = height - margin - (int) (currentAlt * yScale);
+        // Draw the current spacecraft position as a red dot.
         g2d.setColor(Color.RED);
-        g2d.fillOval(currentX - 5, currentY - 5, 10, 10);
-        g2d.drawString("Current", currentX + 10, currentY);
-
-        if (currentAlt <= 10) {
-            double speed = Math.sqrt(sp.getSpacecraft().vx * sp.getSpacecraft().vx + sp.getSpacecraft().vy * sp.getSpacecraft().vy);
-            if (speed > 277.78) {
-                g2d.setColor(Color.RED);
-                g2d.drawString("Collision! Landing speed: " + String.format("%.2f m/s", speed), margin, margin + 20);
-            } else {
-                g2d.setColor(Color.GREEN);
-                g2d.drawString("Successful Landing! Speed: " + String.format("%.2f m/s", speed), margin, margin + 20);
-            }
-        }
+        g2d.fillOval(spacecraftScreenX - 5, spacecraftScreenY - 5, 10, 10);
+        g2d.drawString("Current", spacecraftScreenX + 10, spacecraftScreenY);
     }
 }

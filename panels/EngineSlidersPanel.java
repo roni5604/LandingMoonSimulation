@@ -1,38 +1,40 @@
-/*
- * EngineSlidersPanel.java
- *
- * Description:
- * This panel displays sliders to control the thrust values for each engine.
- * - Main engine (MHT): Range [-430, +430]
- * - Secondary engines: Range [-25, +25]
- * Each slider updates only its associated engine's thrust value.
- */
-
 package panels;
 
 import javax.swing.*;
 import java.awt.*;
 import java.util.HashMap;
 
+/*
+ * EngineSlidersPanel.java
+ *
+ * Displays sliders to control the thrust values for each engine.
+ * - Main engine (MHT): Range [-430, +430]
+ * - Secondary engines: Range [-25, +25]
+ * Each slider updates only its associated engine’s thrust value.
+ */
 public class EngineSlidersPanel extends JPanel {
     public String mainEngine = "MHT";
-    public String[] secondaryEngines = {"14", "24", "21", "1-1", "12", "22", "23", "13"};
-
-    // Current thrust values for each engine
+    public String[] secondaryEngines = {
+            "FR1", "FR2",
+            "FL1", "FL2",
+            "BL1", "BL2",
+            "BR1", "BR2"
+    };
+    // Current thrust values for each engine.
     public HashMap<String, Double> engineThrust = new HashMap<>();
-    // Sliders for controlling thrust
+    // Sliders for controlling thrust.
     public HashMap<String, JSlider> sliders = new HashMap<>();
 
     public EngineSlidersPanel() {
         setLayout(new GridLayout(9, 1, 5, 5));
 
-        // Main engine
+        // Main engine slider.
         engineThrust.put(mainEngine, 0.0);
         JSlider mainSlider = createSliderForKey(mainEngine, -430, 430, 0);
         sliders.put(mainEngine, mainSlider);
         add(labeledPanel(mainEngine + " thrust", mainSlider));
 
-        // Secondary engines
+        // Secondary engine sliders.
         for (String eng : secondaryEngines) {
             engineThrust.put(eng, 0.0);
             JSlider s = createSliderForKey(eng, -25, 25, 0);
@@ -44,10 +46,10 @@ public class EngineSlidersPanel extends JPanel {
     /**
      * Creates a slider for a specific engine key.
      *
-     * @param key   The engine identifier.
-     * @param min   The minimum slider value.
-     * @param max   The maximum slider value.
-     * @param init  The initial slider value.
+     * @param key  The engine identifier.
+     * @param min  The minimum slider value.
+     * @param max  The maximum slider value.
+     * @param init The initial slider value.
      * @return A JSlider configured for the given engine.
      */
     private JSlider createSliderForKey(String key, int min, int max, int init) {

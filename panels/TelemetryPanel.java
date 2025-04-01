@@ -1,16 +1,3 @@
-/*
- * TelemetryPanel.java
- *
- * Description:
- * This panel displays real-time telemetry data of the spacecraft:
- * horizontal speed, vertical speed, altitude, angle, and fuel.
- * It also provides buttons for restarting the simulation and for activating/resetting
- * the PID controller for landing.
- *
- * When PID is active, it overrides manual engine thrust commands with outputs
- * from the PID controller.
- */
-
 package panels;
 
 import javax.swing.*;
@@ -18,9 +5,18 @@ import java.awt.*;
 import javax.swing.Timer;
 import constants.SpacecraftConstants;
 import controllers.LandingPIDController;
+import controllers.PIDController;
 import models.Spacecraft;
 import java.util.HashMap;
 
+/**
+ * TelemetryPanel.java
+ *
+ * Displays real-time telemetry data and provides PID landing controls.
+ * When PID is active, the cascaded PID controller (with attitude correction)
+ * overrides engine thrust commands. These commands are pushed to the
+ * EngineSlidersPanel so that both engine visuals and slider values reflect the active commands.
+ */
 public class TelemetryPanel extends JPanel {
     private final SpacecraftPanel sp;
     private final EngineSlidersPanel sliders;
@@ -35,6 +31,13 @@ public class TelemetryPanel extends JPanel {
     private JButton pidResetButton;
 
     private boolean pidActive = false;
+    // Create the cascaded PID controller with 15 parameters.
+    // Example gains (tune as needed):
+    // Vertical position: 0.01, 0.0001, 0.001
+    // Vertical speed: 0.5, 0.01, 0.1
+    // Horizontal position: 0.01, 0.0001, 0.001
+    // Horizontal speed: 0.5, 0.01, 0.1
+    // Attitude: 0.5, 0.001, 0.05
     private LandingPIDController pidController;
 
     public TelemetryPanel(SpacecraftPanel spacecraftPanel, EngineSlidersPanel slidersPanel) {
@@ -43,9 +46,13 @@ public class TelemetryPanel extends JPanel {
         setBackground(Color.DARK_GRAY);
         setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
         buildUI();
-        // Initialize PID controller with example gains (tuning may be required)
-        pidController = new LandingPIDController(50, 0.1, 10, 50, 0.1, 10);
-
+        pidController = new LandingPIDController(
+                0.01, 0.0001, 0.001,   // vertical position gains
+                0.5, 0.01, 0.1,        // vertical speed gains
+                0.01, 0.0001, 0.001,    // horizontal position gains
+                0.5, 0.01, 0.1,         // horizontal speed gains
+                0.5, 0.001, 0.05        // attitude gains
+        );
         Timer t = new Timer(100, e -> updateTelemetry());
         t.start();
     }
@@ -121,13 +128,13 @@ public class TelemetryPanel extends JPanel {
     }
 
     private void updateTelemetry() {
-        // Get spacecraft model from SpacecraftPanel
         Spacecraft sc = sp.getSpacecraft();
         double hSpeed = sc.getHorizontalSpeed();
         double vSpeed = sc.getVerticalSpeed();
         double alt    = sc.getAltitude();
         double ang    = sc.getAngle();
         double fuel   = sc.getFuel();
+        double hPos   = sc.x; // horizontal position
 
         horizontalValue.setText(String.format("%.2f", hSpeed));
         verticalValue.setText(String.format("%.2f", vSpeed));
@@ -135,12 +142,38 @@ public class TelemetryPanel extends JPanel {
         angleLabel.setText(String.format("Angle: %.2f°", ang));
         fuelLabel.setText(String.format("Fuel: %.2f L", fuel));
 
-        // If PID is active, override engine thrust commands.
         if (pidActive) {
-            HashMap<String, Double> pidCommands = pidController.update(vSpeed, hSpeed, SpacecraftConstants.DT);
-            sliders.engineThrust.put("MHT", pidCommands.get("MHT"));
-            for (String eng : sliders.secondaryEngines) {
-                sliders.engineThrust.put(eng, pidCommands.get("HORIZONTAL"));
+            // Update PID using: currentAltitude, currentVerticalSpeed, currentHorizontalPos, currentHorizontalSpeed, currentAngle, dt.
+            HashMap<String, Double> pidCommands = pidController.update(
+                    alt, vSpeed, hPos, hSpeed, ang, SpacecraftConstants.DT
+            );
+            double verticalCmd = pidCommands.get("MHT");
+            double horizontalCmd = pidCommands.get("HORIZONTAL");
+            // Override main engine command.
+            sliders.engineThrust.put("MHT", verticalCmd);
+
+            // Selectively activate secondary engines:
+            // If horizontalCmd is positive, fire left engines; if negative, fire right engines.
+            if (horizontalCmd > 0) {
+                for (String eng : sliders.secondaryEngines) {
+                    if (eng.contains("L")) {
+                        sliders.engineThrust.put(eng, horizontalCmd);
+                    } else {
+                        sliders.engineThrust.put(eng, 0.0);
+                    }
+                }
+            } else if (horizontalCmd < 0) {
+                for (String eng : sliders.secondaryEngines) {
+                    if (eng.contains("R")) {
+                        sliders.engineThrust.put(eng, -horizontalCmd);
+                    } else {
+                        sliders.engineThrust.put(eng, 0.0);
+                    }
+                }
+            } else {
+                for (String eng : sliders.secondaryEngines) {
+                    sliders.engineThrust.put(eng, 0.0);
+                }
             }
             pidToggleButton.setText("PID Active");
         } else {
